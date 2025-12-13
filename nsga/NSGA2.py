@@ -125,6 +125,9 @@ def eval_individual_fitness(individual, instance, unit_cost):
             Json object that is loaded as file object
             unit_cost for the distance 
     Outputs: Returns a tuple of (Number of vehicles, Route cost from all the vehicles)
+    
+    Note: If the number of vehicles exceeds max_vehicle_number, a penalty is applied
+          to both objectives to ensure infeasible solutions are dominated in NSGA-II.
     """
 
     vehicles = getNumVehiclesRequired(individual, instance)
@@ -132,9 +135,12 @@ def eval_individual_fitness(individual, instance, unit_cost):
     route_cost = getRouteCost(individual, instance, unit_cost)
 
     # Apply penalty if the number of vehicles exceeds the maximum allowed
+    # If max_vehicle_number is not defined, treat it as unconstrained (infinity)
     max_vehicles = instance.get('max_vehicle_number', float('inf'))
     if vehicles > max_vehicles:
-        # Add a large penalty to make infeasible solutions clearly dominated
+        # Apply penalty to both objectives to ensure constraint-violating solutions
+        # are dominated in the Pareto front. The penalty makes these solutions
+        # clearly worse than any feasible solution in both objectives.
         penalty = (vehicles - max_vehicles) * VEHICLE_CONSTRAINT_PENALTY
         return (vehicles + penalty, route_cost + penalty)
 
