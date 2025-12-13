@@ -15,6 +15,9 @@ from deap.benchmarks.tools import diversity, convergence, hypervolume
 
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
+# Penalty multiplier for vehicle constraint violations
+VEHICLE_CONSTRAINT_PENALTY = 10000
+
 def load_instance(json_file):
     """
     Inputs: path to json file
@@ -78,7 +81,7 @@ def getNumVehiclesRequired(individual, instance):
     """
     Inputs: Individual route
             Json file object loaded instance
-    Outputs: Number of vechiles according to the given problem and the route
+    Outputs: Number of vehicles according to the given problem and the route
     """
     updated_route = routeToSubroute(individual, instance)
     num_of_vehicles = len(updated_route)
@@ -116,17 +119,30 @@ def getRouteCost(individual, instance, unit_cost=1):
     return total_cost
 
 
-def eval_indvidual_fitness(individual, instance, unit_cost):
+def eval_individual_fitness(individual, instance, unit_cost):
     """
     Inputs: individual route as a sequence
             Json object that is loaded as file object
             unit_cost for the distance 
-    Outputs: Returns a tuple of (Number of vechicles, Route cost from all the vechicles)
+    Outputs: Returns a tuple of (Number of vehicles, Route cost from all the vehicles)
+    
+    Note: If the number of vehicles exceeds max_vehicle_number, a penalty is applied
+          to both objectives to ensure infeasible solutions are dominated in NSGA-II.
     """
 
     vehicles = getNumVehiclesRequired(individual, instance)
 
     route_cost = getRouteCost(individual, instance, unit_cost)
+
+    # Apply penalty if the number of vehicles exceeds the maximum allowed
+    # If max_vehicle_number is not defined, treat it as unconstrained (infinity)
+    max_vehicles = instance.get('max_vehicle_number', float('inf'))
+    if vehicles > max_vehicles:
+        # Apply penalty to both objectives to ensure constraint-violating solutions
+        # are dominated in the Pareto front. The penalty makes these solutions
+        # clearly worse than any feasible solution in both objectives.
+        penalty = (vehicles - max_vehicles) * VEHICLE_CONSTRAINT_PENALTY
+        return (vehicles + penalty, route_cost + penalty)
 
     return (vehicles, route_cost)
 
@@ -251,7 +267,7 @@ class nsgaAlgo(object):
         self.toolbox.register('individual', tools.initIterate, creator.Individual, self.toolbox.indexes)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
 
-        self.toolbox.register('evaluate', eval_indvidual_fitness, instance=self.json_instance, unit_cost=1)
+        self.toolbox.register('evaluate', eval_individual_fitness, instance=self.json_instance, unit_cost=1)
 
         self.toolbox.register("select", tools.selNSGA2)
 
@@ -304,11 +320,19 @@ class nsgaAlgo(object):
     def getBestInd(self):
         self.best_individual = tools.selBest(self.pop, 1)[0]
 
+        actual_vehicles = getNumVehiclesRequired(self.best_individual, self.json_instance)
+        max_vehicles = self.json_instance.get('max_vehicle_number', float('inf'))
+        
         print(f"Best individual is {self.best_individual}")
-        print(f"Number of vechicles required are "
-              f"{self.best_individual.fitness.values[0]}")
-        print(f"Cost required for the transportation is "
-              f"{self.best_individual.fitness.values[1]}")
+        print(f"Actual number of vehicles required: {actual_vehicles}")
+        print(f"Maximum vehicles allowed: {max_vehicles}")
+        if actual_vehicles > max_vehicles:
+            print(f"WARNING: Solution exceeds vehicle constraint ({actual_vehicles} > {max_vehicles})")
+            print(f"Penalized fitness - Vehicles: {self.best_individual.fitness.values[0]}, "
+                  f"Cost: {self.best_individual.fitness.values[1]}")
+        else:
+            print(f"Fitness - Vehicles: {self.best_individual.fitness.values[0]}, "
+                  f"Cost: {self.best_individual.fitness.values[1]}")
 
         printRoute(routeToSubroute(self.best_individual, self.json_instance))
 
@@ -346,7 +370,7 @@ def nsga2vrp():
     toolbox.register('individual', tools.initIterate, creator.Individual, toolbox.indexes)
     toolbox.register('population', tools.initRepeat, list, toolbox.individual)
     
-    toolbox.register('evaluate', eval_indvidual_fitness, instance=json_instance, unit_cost = 1)
+    toolbox.register('evaluate', eval_individual_fitness, instance=json_instance, unit_cost = 1)
 
     toolbox.register("select", tools.selNSGA2)
 
@@ -398,9 +422,19 @@ def nsga2vrp():
 
     best_individual = tools.selBest(pop, 1)[0]
 
+    actual_vehicles = getNumVehiclesRequired(best_individual, json_instance)
+    max_vehicles = json_instance.get('max_vehicle_number', float('inf'))
+    
     print(f"Best individual is {best_individual}")
-    print(f"Number of vechicles required are {best_individual.fitness.values[0]}")
-    print(f"Cost required for the transportation is {best_individual.fitness.values[1]}")
+    print(f"Actual number of vehicles required: {actual_vehicles}")
+    print(f"Maximum vehicles allowed: {max_vehicles}")
+    if actual_vehicles > max_vehicles:
+        print(f"WARNING: Solution exceeds vehicle constraint ({actual_vehicles} > {max_vehicles})")
+        print(f"Penalized fitness - Vehicles: {best_individual.fitness.values[0]}, "
+              f"Cost: {best_individual.fitness.values[1]}")
+    else:
+        print(f"Fitness - Vehicles: {best_individual.fitness.values[0]}, "
+              f"Cost: {best_individual.fitness.values[1]}")
 
     printRoute(routeToSubroute(best_individual, json_instance))
 
@@ -430,8 +464,8 @@ def testcosts():
     print(f"Sample individual cost is {getRouteCost(sample_individual, test_instance, 1)}")
     print(f"Sample individual 2 cost is {getRouteCost(sample_ind_2, test_instance, 1)}")
 
-    print(f"Sample individual fitness is {eval_indvidual_fitness(sample_individual, test_instance, 1)}")
-    print(f"Sample individual 2 fitness is {eval_indvidual_fitness(sample_ind_2, test_instance, 1)}")
+    print(f"Sample individual fitness is {eval_individual_fitness(sample_individual, test_instance, 1)}")
+    print(f"Sample individual 2 fitness is {eval_individual_fitness(sample_ind_2, test_instance, 1)}")
 
 def testroutes():
     test_instance = load_instance('./data/json/Input_Data.json')
