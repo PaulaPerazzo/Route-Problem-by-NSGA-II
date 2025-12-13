@@ -15,6 +15,9 @@ from deap.benchmarks.tools import diversity, convergence, hypervolume
 
 BASE_DIR = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
 
+# Penalty multiplier for vehicle constraint violations
+VEHICLE_CONSTRAINT_PENALTY = 10000
+
 def load_instance(json_file):
     """
     Inputs: path to json file
@@ -78,7 +81,7 @@ def getNumVehiclesRequired(individual, instance):
     """
     Inputs: Individual route
             Json file object loaded instance
-    Outputs: Number of vechiles according to the given problem and the route
+    Outputs: Number of vehicles according to the given problem and the route
     """
     updated_route = routeToSubroute(individual, instance)
     num_of_vehicles = len(updated_route)
@@ -116,12 +119,12 @@ def getRouteCost(individual, instance, unit_cost=1):
     return total_cost
 
 
-def eval_indvidual_fitness(individual, instance, unit_cost):
+def eval_individual_fitness(individual, instance, unit_cost):
     """
     Inputs: individual route as a sequence
             Json object that is loaded as file object
             unit_cost for the distance 
-    Outputs: Returns a tuple of (Number of vechicles, Route cost from all the vechicles)
+    Outputs: Returns a tuple of (Number of vehicles, Route cost from all the vehicles)
     """
 
     vehicles = getNumVehiclesRequired(individual, instance)
@@ -132,9 +135,8 @@ def eval_indvidual_fitness(individual, instance, unit_cost):
     max_vehicles = instance.get('max_vehicle_number', float('inf'))
     if vehicles > max_vehicles:
         # Add a large penalty to make infeasible solutions clearly dominated
-        penalty = (vehicles - max_vehicles) * 10000
-        vehicles = vehicles + penalty
-        route_cost = route_cost + penalty
+        penalty = (vehicles - max_vehicles) * VEHICLE_CONSTRAINT_PENALTY
+        return (vehicles + penalty, route_cost + penalty)
 
     return (vehicles, route_cost)
 
@@ -259,7 +261,7 @@ class nsgaAlgo(object):
         self.toolbox.register('individual', tools.initIterate, creator.Individual, self.toolbox.indexes)
         self.toolbox.register('population', tools.initRepeat, list, self.toolbox.individual)
 
-        self.toolbox.register('evaluate', eval_indvidual_fitness, instance=self.json_instance, unit_cost=1)
+        self.toolbox.register('evaluate', eval_individual_fitness, instance=self.json_instance, unit_cost=1)
 
         self.toolbox.register("select", tools.selNSGA2)
 
@@ -362,7 +364,7 @@ def nsga2vrp():
     toolbox.register('individual', tools.initIterate, creator.Individual, toolbox.indexes)
     toolbox.register('population', tools.initRepeat, list, toolbox.individual)
     
-    toolbox.register('evaluate', eval_indvidual_fitness, instance=json_instance, unit_cost = 1)
+    toolbox.register('evaluate', eval_individual_fitness, instance=json_instance, unit_cost = 1)
 
     toolbox.register("select", tools.selNSGA2)
 
@@ -456,8 +458,8 @@ def testcosts():
     print(f"Sample individual cost is {getRouteCost(sample_individual, test_instance, 1)}")
     print(f"Sample individual 2 cost is {getRouteCost(sample_ind_2, test_instance, 1)}")
 
-    print(f"Sample individual fitness is {eval_indvidual_fitness(sample_individual, test_instance, 1)}")
-    print(f"Sample individual 2 fitness is {eval_indvidual_fitness(sample_ind_2, test_instance, 1)}")
+    print(f"Sample individual fitness is {eval_individual_fitness(sample_individual, test_instance, 1)}")
+    print(f"Sample individual 2 fitness is {eval_individual_fitness(sample_ind_2, test_instance, 1)}")
 
 def testroutes():
     test_instance = load_instance('./data/json/Input_Data.json')
