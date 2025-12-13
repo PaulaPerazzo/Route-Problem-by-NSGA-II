@@ -128,6 +128,14 @@ def eval_indvidual_fitness(individual, instance, unit_cost):
 
     route_cost = getRouteCost(individual, instance, unit_cost)
 
+    # Apply penalty if the number of vehicles exceeds the maximum allowed
+    max_vehicles = instance.get('max_vehicle_number', float('inf'))
+    if vehicles > max_vehicles:
+        # Add a large penalty to make infeasible solutions clearly dominated
+        penalty = (vehicles - max_vehicles) * 10000
+        vehicles = vehicles + penalty
+        route_cost = route_cost + penalty
+
     return (vehicles, route_cost)
 
 
