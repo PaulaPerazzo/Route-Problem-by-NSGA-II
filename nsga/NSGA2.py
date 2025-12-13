@@ -312,11 +312,19 @@ class nsgaAlgo(object):
     def getBestInd(self):
         self.best_individual = tools.selBest(self.pop, 1)[0]
 
+        actual_vehicles = getNumVehiclesRequired(self.best_individual, self.json_instance)
+        max_vehicles = self.json_instance.get('max_vehicle_number', float('inf'))
+        
         print(f"Best individual is {self.best_individual}")
-        print(f"Number of vechicles required are "
-              f"{self.best_individual.fitness.values[0]}")
-        print(f"Cost required for the transportation is "
-              f"{self.best_individual.fitness.values[1]}")
+        print(f"Actual number of vehicles required: {actual_vehicles}")
+        print(f"Maximum vehicles allowed: {max_vehicles}")
+        if actual_vehicles > max_vehicles:
+            print(f"WARNING: Solution exceeds vehicle constraint ({actual_vehicles} > {max_vehicles})")
+            print(f"Penalized fitness - Vehicles: {self.best_individual.fitness.values[0]}, "
+                  f"Cost: {self.best_individual.fitness.values[1]}")
+        else:
+            print(f"Fitness - Vehicles: {self.best_individual.fitness.values[0]}, "
+                  f"Cost: {self.best_individual.fitness.values[1]}")
 
         printRoute(routeToSubroute(self.best_individual, self.json_instance))
 
@@ -406,9 +414,19 @@ def nsga2vrp():
 
     best_individual = tools.selBest(pop, 1)[0]
 
+    actual_vehicles = getNumVehiclesRequired(best_individual, json_instance)
+    max_vehicles = json_instance.get('max_vehicle_number', float('inf'))
+    
     print(f"Best individual is {best_individual}")
-    print(f"Number of vechicles required are {best_individual.fitness.values[0]}")
-    print(f"Cost required for the transportation is {best_individual.fitness.values[1]}")
+    print(f"Actual number of vehicles required: {actual_vehicles}")
+    print(f"Maximum vehicles allowed: {max_vehicles}")
+    if actual_vehicles > max_vehicles:
+        print(f"WARNING: Solution exceeds vehicle constraint ({actual_vehicles} > {max_vehicles})")
+        print(f"Penalized fitness - Vehicles: {best_individual.fitness.values[0]}, "
+              f"Cost: {best_individual.fitness.values[1]}")
+    else:
+        print(f"Fitness - Vehicles: {best_individual.fitness.values[0]}, "
+              f"Cost: {best_individual.fitness.values[1]}")
 
     printRoute(routeToSubroute(best_individual, json_instance))
 
