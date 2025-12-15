@@ -310,12 +310,34 @@ class nsgaAlgo(object):
         print(f"Cost required for the transportation is "
               f"{self.best_individual.fitness.values[1]}")
 
+        # Display constraint satisfaction status if constraint handler is available
+        if hasattr(self, 'constraint_handler') and self.constraint_handler:
+            num_vehicles = getNumVehiclesRequired(self.best_individual, self.json_instance)
+            is_feasible = self.constraint_handler.validate_solution(self.best_individual, self.json_instance)
+            max_vehicles = self.constraint_handler.config.max_vehicles
+            
+            print(f"Constraint Status:")
+            print(f"  Actual vehicles used: {num_vehicles}")
+            print(f"  Maximum vehicles allowed: {max_vehicles}")
+            print(f"  Constraint satisfied: {'✓ YES' if is_feasible else '✗ NO'}")
+            
+            if not is_feasible:
+                violation = num_vehicles - max_vehicles
+                print(f"  Constraint violation: {violation} vehicles over limit")
+
         printRoute(routeToSubroute(self.best_individual, self.json_instance))
 
     def doExport(self):
+        # Include constraint information in filename if available
+        constraint_suffix = ""
+        if hasattr(self, 'constraint_config') and self.constraint_config:
+            constraint_suffix = f"_maxVeh{self.constraint_config.max_vehicles}_" \
+                              f"penalty{self.constraint_config.penalty_method.value}"
+        
         csv_file_name = f"{self.json_instance['instance_name']}_" \
                         f"pop{self.pop_size}_crossProb{self.cross_prob}" \
-                        f"_mutProb{self.mut_prob}_numGen{self.num_gen}.csv"
+                        f"_mutProb{self.mut_prob}_numGen{self.num_gen}" \
+                        f"{constraint_suffix}.csv"
         exportCsv(csv_file_name, self.logbook)
 
     def runMain(self):
