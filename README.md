@@ -1,8 +1,8 @@
-# NSGA-II para Problema de Roteamento de Veículos
+# NSGA-II para Problema de Roteamento de Veículos com Janelas de Tempo (VRPTW)
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 
-> Implementação de algoritmo evolucionário multiobjetivo (NSGA-II) para otimização do Problema de Roteamento de Veículos com Restrição de Capacidade (CVRP), testado com instâncias do benchmark Solomon.
+> Implementação de algoritmo evolucionário multiobjetivo (NSGA-II) para otimização do Problema de Roteamento de Veículos com Restrição de Capacidade e Janelas de Tempo (VRPTW - Vehicle Routing Problem with Time Windows), testado com instâncias do benchmark Solomon.
 
 ---
 
@@ -22,7 +22,7 @@
 
 ## 🎯 Sobre o Projeto
 
-Este projeto implementa o **NSGA-II (Non-dominated Sorting Genetic Algorithm II)** para resolver o **Problema de Roteamento de Veículos (VRP)**, um dos problemas de otimização combinatória mais estudados em logística e transporte.
+Este projeto implementa o **NSGA-II (Non-dominated Sorting Genetic Algorithm II)** para resolver o **Problema de Roteamento de Veículos com Janelas de Tempo (VRPTW)**, um dos problemas de otimização combinatória mais estudados em logística e transporte.
 
 ### Objetivos Otimizados
 
@@ -30,10 +30,11 @@ O algoritmo busca **simultaneamente**:
 
 1. **Minimizar o número de veículos** necessários (custos fixos)
 2. **Minimizar a distância total percorrida** (custos variáveis)
+3. **Minimizar violações de janelas de tempo** (atendimento dentro dos horários especificados)
 
 ### Por que NSGA-II?
 
-Ao contrário de algoritmos de objetivo único, o NSGA-II fornece uma **Frente de Pareto** com múltiplas soluções ótimas, permitindo ao gestor escolher o melhor trade-off entre frota e distância conforme as necessidades do negócio.
+Ao contrário de algoritmos de objetivo único, o NSGA-II fornece uma **Frente de Pareto** com múltiplas soluções ótimas, permitindo ao gestor escolher o melhor trade-off entre frota, distância e cumprimento de janelas de tempo conforme as necessidades do negócio.
 
 ---
 
@@ -59,25 +60,28 @@ Ao contrário de algoritmos de objetivo único, o NSGA-II fornece uma **Frente d
 
 ## 🚗 O Problema
 
-### Vehicle Routing Problem (VRP)
+### Vehicle Routing Problem with Time Windows (VRPTW)
 
-O VRP é um problema clássico de otimização onde uma frota de veículos deve:
+O VRPTW é uma extensão do problema clássico VRP onde uma frota de veículos deve:
 
 - Partir de um **depósito central**
 - Atender todos os **clientes distribuídos geograficamente**
 - Respeitar a **capacidade de carga** de cada veículo
-- **Retornar ao depósito** após completar as entregas
+- **Atender cada cliente dentro de sua janela de tempo** (ready_time, due_time)
+- Considerar o **tempo de serviço** em cada cliente
+- **Retornar ao depósito** antes do fechamento
 
 ### Desafio Multiobjetivo
 
 Na prática, os objetivos entram em **conflito**:
 
 ```
-Menos veículos → Rotas mais longas → Maior custo operacional
+Menos veículos → Rotas mais longas → Maior custo operacional + Difícil cumprir janelas de tempo
 Rotas curtas → Mais veículos → Maior custo de frota
+Atender janelas de tempo → Possível aumento de veículos ou distância percorrida
 ```
 
-O NSGA-II resolve esse dilema encontrando **todas as soluções Pareto-ótimas** em uma única execução.
+O NSGA-II resolve esse dilema encontrando **todas as soluções Pareto-ótimas** em uma única execução, balanceando os três objetivos.
 
 ---
 
@@ -88,11 +92,21 @@ O NSGA-II resolve esse dilema encontrando **todas as soluções Pareto-ótimas**
 O NSGA-II é um algoritmo evolucionário de última geração para otimização multiobjetivo que:
 
 1. **Cria uma população** de soluções candidatas (rotas)
-2. **Avalia** cada solução nos dois objetivos
+2. **Avalia** cada solução nos três objetivos (veículos, distância, violações de tempo)
 3. **Classifica** por dominância de Pareto (frentes)
 4. **Seleciona** os melhores mantendo diversidade
 5. **Reproduz** através de crossover e mutação
 6. **Repete** por múltiplas gerações
+
+### Restrições de Janelas de Tempo
+
+O algoritmo implementa verificação de janelas de tempo:
+
+- **Tempo de chegada**: Calculado com base na distância e velocidade
+- **Ready time**: Tempo mínimo para início do atendimento (veículo espera se chegar cedo)
+- **Due time**: Tempo máximo permitido para chegada (violação se chegar tarde)
+- **Service time**: Tempo necessário para atender cada cliente
+- **Violação**: Soma de todos os atrasos (tempo além do due_time)
 
 ### Operadores Genéticos
 
@@ -108,7 +122,7 @@ O NSGA-II é um algoritmo evolucionário de última geração para otimização 
 População Inicial (400 soluções aleatórias)
           ↓
     Avaliação Fitness
-    (veículos, distância)
+    (veículos, distância, violações de tempo)
           ↓
   Classificação por Pareto
   (Frentes 1, 2, 3, ...)
@@ -124,6 +138,7 @@ População Inicial (400 soluções aleatórias)
     [Repetir 200 gerações]
           ↓
   Fronte de Pareto Final
+```
 ```
 
 ---
@@ -254,15 +269,20 @@ Mapa com:
 
 ### Benchmark Utilizado
 
-- **Fonte:** Solomon (1987) - Instâncias clássicas de VRP
+- **Fonte:** Solomon (1987) - Instâncias clássicas de VRPTW
 - **Instância:** 100 clientes distribuídos geograficamente
-- **Restrição:** Capacidade de veículo = 100 unidades
+- **Restrições:** 
+  - Capacidade de veículo = 70 unidades
+  - Janelas de tempo para cada cliente (ready_time, due_time)
+  - Tempo de serviço de 10 unidades por cliente
+  - Janela de operação do depósito: [0, 230]
 
 ### Validação
 
 - ✅ Todas as rotas respeitam capacidade dos veículos
 - ✅ Todos os 100 clientes são atendidos exatamente uma vez
 - ✅ Todas as rotas começam e terminam no depósito
+- ✅ O algoritmo minimiza violações de janelas de tempo
 
 ---
 
