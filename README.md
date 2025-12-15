@@ -139,7 +139,6 @@ População Inicial (400 soluções aleatórias)
           ↓
   Fronte de Pareto Final
 ```
-```
 
 ---
 
