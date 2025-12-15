@@ -116,19 +116,79 @@ def getRouteCost(individual, instance, unit_cost=1):
     return total_cost
 
 
+def getTimeWindowViolation(individual, instance):
+    """
+    Inputs:
+        - Individual route
+        - Problem instance, json file that is loaded
+    
+    Outputs:
+        - Total time window violation (sum of delays and early arrivals)
+    
+    This function calculates time window violations for VRPTW.
+    For each customer, it checks if the vehicle arrives within the time window [ready_time, due_time].
+    """
+    total_violation = 0
+    updated_route = routeToSubroute(individual, instance)
+    
+    for sub_route in updated_route:
+        current_time = 0  # Start time at depot
+        last_customer_id = 0  # Depot
+        
+        for customer_id in sub_route:
+            # Travel time from last customer to current customer
+            travel_time = instance["distance_matrix"][last_customer_id][customer_id]
+            arrival_time = current_time + travel_time
+            
+            # Get customer time window
+            customer_data = instance[f"customer_{customer_id}"]
+            ready_time = customer_data["ready_time"]
+            due_time = customer_data["due_time"]
+            service_time = customer_data["service_time"]
+            
+            # Calculate violation
+            if arrival_time < ready_time:
+                # Vehicle arrives early, must wait (no penalty, just update time)
+                current_time = ready_time + service_time
+            elif arrival_time > due_time:
+                # Vehicle arrives late (violation)
+                violation = arrival_time - due_time
+                total_violation += violation
+                current_time = arrival_time + service_time
+            else:
+                # Vehicle arrives on time
+                current_time = arrival_time + service_time
+            
+            last_customer_id = customer_id
+        
+        # Check if vehicle can return to depot before depot's due time
+        travel_back_to_depot = instance["distance_matrix"][last_customer_id][0]
+        arrival_at_depot = current_time + travel_back_to_depot
+        depot_due_time = instance["depart"]["due_time"]
+        
+        if arrival_at_depot > depot_due_time:
+            violation = arrival_at_depot - depot_due_time
+            total_violation += violation
+    
+    return total_violation
+
+
 def eval_indvidual_fitness(individual, instance, unit_cost):
     """
     Inputs: individual route as a sequence
             Json object that is loaded as file object
             unit_cost for the distance 
-    Outputs: Returns a tuple of (Number of vechicles, Route cost from all the vechicles)
+    Outputs: Returns a tuple of (Number of vechicles, Route cost from all the vechicles, Time window violations)
+             For VRPTW (Vehicle Routing Problem with Time Windows)
     """
 
     vehicles = getNumVehiclesRequired(individual, instance)
 
     route_cost = getRouteCost(individual, instance, unit_cost)
+    
+    time_window_violation = getTimeWindowViolation(individual, instance)
 
-    return (vehicles, route_cost)
+    return (vehicles, route_cost, time_window_violation)
 
 
 
@@ -243,7 +303,7 @@ class nsgaAlgo(object):
         self.createCreators()
 
     def createCreators(self):
-        creator.create('FitnessMin', base.Fitness, weights=(-1.0, -1.0))
+        creator.create('FitnessMin', base.Fitness, weights=(-1.0, -1.0, -1.0))
         creator.create('Individual', list, fitness=creator.FitnessMin)
 
         self.toolbox.register('indexes', random.sample, range(1, self.ind_size + 1), self.ind_size)
@@ -309,6 +369,8 @@ class nsgaAlgo(object):
               f"{self.best_individual.fitness.values[0]}")
         print(f"Cost required for the transportation is "
               f"{self.best_individual.fitness.values[1]}")
+        print(f"Time window violations: "
+              f"{self.best_individual.fitness.values[2]}")
 
         printRoute(routeToSubroute(self.best_individual, self.json_instance))
 
@@ -337,7 +399,7 @@ def nsga2vrp():
     mut_prob = 0.02
     num_gen = 220
 
-    creator.create('FitnessMin', base.Fitness, weights=(-1.0, -1.0))
+    creator.create('FitnessMin', base.Fitness, weights=(-1.0, -1.0, -1.0))
     creator.create('Individual', list, fitness=creator.FitnessMin)
 
     toolbox = base.Toolbox()
@@ -401,6 +463,7 @@ def nsga2vrp():
     print(f"Best individual is {best_individual}")
     print(f"Number of vechicles required are {best_individual.fitness.values[0]}")
     print(f"Cost required for the transportation is {best_individual.fitness.values[1]}")
+    print(f"Time window violations: {best_individual.fitness.values[2]}")
 
     printRoute(routeToSubroute(best_individual, json_instance))
 
